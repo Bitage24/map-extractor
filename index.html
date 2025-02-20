@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estrai Dati Google Maps con API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        label, input, button {
+            display: block;
+            margin: 10px 0;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            display: none;
+        }
+        #error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h2>Estrai Dati da Google Maps</h2>
+    <label for="mapsUrl">Inserisci l'URL di Google Maps:</label>
+    <input type="text" id="mapsUrl" placeholder="https://www.google.com/maps/place/...">
+    <button onclick="extractData()">Estrai Dati</button>
+    <div id="error"></div>
+    
+    <div id="results">
+        <h3>Risultati:</h3>
+        <p><strong>Nome:</strong> <span id="name"></span></p>
+        <p><strong>Città:</strong> <span id="city"></span></p>
+        <p><strong>Regione:</strong> <span id="region"></span></p>
+        <p><strong>CAP:</strong> <span id="postcode"></span></p>
+        <p><strong>Paese:</strong> <span id="country"></span></p>
+        <p><strong>Latitudine:</strong> <span id="latitude"></span></p>
+        <p><strong>Longitudine:</strong> <span id="longitude"></span></p>
+        <p><strong>Indirizzo completo:</strong> <span id="address"></span></p>
+        <p><strong>Telefono:</strong> <span id="phone"></span></p>
+        <p><strong>Sito web:</strong> <span id="website"></span></p>
+    </div>
+
+    <!-- Sostituisci YOUR_API_KEY con la tua chiave API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEILQacJzXLebHuZxWP70PdWeQ4h1gZHU&libraries=places&callback=initMap" async defer></script>
+    <script>
+        let placesService;
+
+        function initMap() {
+            // Inizializza il servizio Places dopo il caricamento della libreria
+            const map = new google.maps.Map(document.createElement('div'));
+            placesService = new google.maps.places.PlacesService(map);
+            console.log('API Google Maps caricata correttamente');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function extractData() {
+            hideError();
+            const url = document.getElementById('mapsUrl').value;
+            if (!url) {
+                showError('Inserisci un URL valido di Google Maps');
+                return;
+            }
+
+            // Estrazione coordinate dall'URL
+            const coordRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
+            const coordMatch = url.match(coordRegex);
+
+            if (!coordMatch) {
+                showError('URL non valido: coordinate non trovate');
+                return;
+            }
+
+            const lat = parseFloat(coordMatch[1]);
+            const lng = parseFloat(coordMatch[2]);
+
+            if (!placesService) {
+                showError('Errore: API Google Maps non caricata. Controlla la chiave API.');
+                return;
+            }
+
+            // Cerca luoghi vicini
+            const request = {
+                location: new google.maps.LatLng(lat, lng),
+                radius: '100', // Raggio in metri
+                type: ['establishment']
+            };
+
+            placesService.nearbySearch(request, (results, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK && results[0]) {
+                    const placeId = results[0].place_id;
+
+                    // Ottieni dettagli
+                    placesService.getDetails({ placeId: placeId }, (place, detailStatus) => {
+                        if (detailStatus === google.maps.places.PlacesServiceStatus.OK) {
+                            const addressComponents = place.address_components || [];
+                            let city = '', region = '', postcode = '', country = '';
+
+                            addressComponents.forEach(component => {
+                                if (component.types.includes('locality')) city = component.long_name;
+                                if (component.types.includes('administrative_area_level_1')) region = component.long_name;
+                                if (component.types.includes('postal_code')) postcode = component.long_name;
+                                if (component.types.includes('country')) country = component.long_name;
+                            });
+
+                            document.getElementById('name').textContent = place.name || 'Non trovato';
+                            document.getElementById('city').textContent = city || 'Non trovato';
+                            document.getElementById('region').textContent = region || 'Non trovato';
+                            document.getElementById('postcode').textContent = postcode || 'Non trovato';
+                            document.getElementById('country').textContent = country || 'Non trovato';
+                            document.getElementById('latitude').textContent = lat;
+                            document.getElementById('longitude').textContent = lng;
+                            document.getElementById('address').textContent = place.formatted_address || 'Non trovato';
+                            document.getElementById('phone').textContent = place.formatted_phone_number || 'Non trovato';
+                            document.getElementById('website').textContent = place.website || 'Non trovato';
+
+                            document.getElementById('results').style.display = 'block';
+                        } else {
+                            showError('Errore nel recupero dei dettagli: ' + detailStatus);
+                        }
+                    });
+                } else {
+                    showError('Nessun luogo trovato: ' + status);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
