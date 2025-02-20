@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estrattore Dati Ristorante</title>
+    <script>
+        async function extractPlaceDetails() {
+            document.getElementById("output").innerHTML = "<p style='color:blue;'>Sto elaborando la richiesta...</p>";
+
+            const googleMapsUrl = document.getElementById("mapsUrl").value;
+            const apiKey = AIzaSyDEILQacJzXLebHuZxWP70PdWeQ4h1gZHU
+
+            if (apiKey === AIzaSyDEILQacJzXLebHuZxWP70PdWeQ4h1gZHU || apiKey.trim() === "") {
+                document.getElementById("output").innerHTML = "<p style='color:red;'>Errore: chiave API non impostata. Inserisci una chiave API valida.</p>";
+                return;
+            }
+
+            if (!googleMapsUrl) {
+                document.getElementById("output").innerHTML = "<p style='color:red;'>Inserisci un URL valido di Google Maps.</p>";
+                return;
+            }
+
+            let placeId = null;
+            const placeIdMatch = googleMapsUrl.match(/!1s([^!]+)!/);
+            if (placeIdMatch) {
+                placeId = placeIdMatch[1];
+            }
+
+            if (!placeId) {
+                document.getElementById("output").innerHTML = "<p style='color:red;'>Errore: impossibile trovare il Place ID. Assicurati che l'URL sia corretto.</p>";
+                return;
+            }
+
+            console.log("Place ID estratto:", placeId);
+
+            const apiUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${apiKey}&fields=name,formatted_address,geometry/location,formatted_phone_number,website,address_components`;
+
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error("Errore nella richiesta API.");
+                }
+                const data = await response.json();
+
+                if (data.status !== "OK") {
+                    document.getElementById("output").innerHTML = `<p style='color:red;'>Errore API: ${data.status} - ${data.error_message || "Impossibile ottenere i dettagli."}</p>`;
+                    return;
+                }
+
+                const result = data.result;
+                const addressComponents = result.address_components || [];
+                let city = "", region = "", postcode = "", country = "";
+
+                addressComponents.forEach(component => {
+                    if (component.types.includes("locality")) city = component.long_name;
+                    if (component.types.includes("administrative_area_level_1")) region = component.long_name;
+                    if (component.types.includes("postal_code")) postcode = component.long_name;
+                    if (component.types.includes("country")) country = component.long_name;
+                });
+
+                document.getElementById("output").innerHTML = `
+                    <h3>Dettagli del Ristorante</h3>
+                    <p><strong>Nome:</strong> ${result.name || "N/A"}</p>
+                    <p><strong>Indirizzo Completo:</strong> ${result.formatted_address || "N/A"}</p>
+                    <p><strong>Città:</strong> ${city || "N/A"}</p>
+                    <p><strong>Regione:</strong> ${region || "N/A"}</p>
+                    <p><strong>CAP:</strong> ${postcode || "N/A"}</p>
+                    <p><strong>Paese:</strong> ${country || "N/A"}</p>
+                    <p><strong>Latitudine:</strong> ${result.geometry?.location?.lat || "N/A"}</p>
+                    <p><strong>Longitudine:</strong> ${result.geometry?.location?.lng || "N/A"}</p>
+                    <p><strong>Telefono:</strong> ${result.formatted_phone_number || "N/A"}</p>
+                    <p><strong>Sito Web:</strong> <a href="${result.website || "#"}" target="_blank">${result.website || "N/A"}</a></p>
+                `;
+            } catch (error) {
+                console.error("Errore:", error);
+                document.getElementById("output").innerHTML = "<p style='color:red;'>Si è verificato un errore. Controlla la console per dettagli.</p>";
+            }
+        }
+    </script>
+</head>
+<body>
+    <h2>Estrattore Dati Ristorante</h2>
+    <label for="mapsUrl">Inserisci URL di Google Maps:</label>
+    <input type="text" id="mapsUrl" placeholder="Incolla l'URL qui" size="50">
+    <button onclick="extractPlaceDetails()">Estrai Dettagli</button>
+
+    <div id="output"></div>
+</body>
+</html>
