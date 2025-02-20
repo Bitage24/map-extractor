@@ -5,50 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estrai Dati Google Maps con API</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-        }
-        label, input, button {
-            display: block;
-            margin: 10px 0;
-        }
-        input[type="text"] {
-            width: 100%;
-            padding: 8px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        #results {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            display: none;
-        }
-        #error {
-            color: red;
-            margin-top: 10px;
-            display: none;
-        }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; }
+        label, input, button { display: block; margin: 10px 0; }
+        input[type="text"] { width: 100%; padding: 8px; }
+        button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        button:hover:not(:disabled) { background-color: #45a049; }
+        #results { margin-top: 20px; padding: 15px; border: 1px solid #ddd; display: none; }
+        #error { color: red; margin-top: 10px; display: none; }
+        #status { color: blue; margin-top: 10px; }
     </style>
 </head>
 <body>
     <h2>Estrai Dati da Google Maps</h2>
     <label for="mapsUrl">Inserisci l'URL di Google Maps:</label>
     <input type="text" id="mapsUrl" placeholder="https://www.google.com/maps/place/...">
-    <button onclick="extractData()">Estrai Dati</button>
+    <button id="extractButton" onclick="extractData()" disabled>Estrai Dati</button>
     <div id="error"></div>
-    
+    <div id="status">Caricamento API in corso...</div>
     <div id="results">
         <h3>Risultati:</h3>
         <p><strong>Nome:</strong> <span id="name"></span></p>
@@ -63,42 +37,67 @@
         <p><strong>Sito web:</strong> <span id="website"></span></p>
     </div>
 
-    <!-- Sostituisci YOUR_API_KEY con la tua chiave API -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEILQacJzXLebHuZxWP70PdWeQ4h1gZHU&libraries=places&callback=initMap" async defer></script>
+    <!-- Caricamento API con best practice -->
     <script>
+        (g => {
+            var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window;
+            b = b[c] || (b[c] = {});
+            var d = b.maps || (b.maps = {}), r = new Set, e = new URLSearchParams, t = () =>
+                h || (h = new Promise(async (f, n) => {
+                    await (a = m.createElement("script"));
+                    e.set("libraries", [...r] + "");
+                    for (k in g) e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]);
+                    e.set("callback", c + ".maps." + q);
+                    a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
+                    d[q] = f;
+                    a.onerror = () => h = n(Error(p + " could not load."));
+                    a.nonce = m.querySelector("script[nonce]")?.nonce || "";
+                    m.head.append(a);
+                }));
+            d[l] ? console.warn(p + " only loads once. Ignoring:", g) : d[l] = (f, ...n) => r.add(f) && t().then(() => d[l](f, ...n));
+        })({
+            key: "AIzaSyDEILQacJzXLebHuZxWP70PdWeQ4h1gZHU", // SOSTITUISCI CON LA TUA CHIAVE API
+            v: "weekly"
+        });
+
         let placesService;
 
-        function initMap() {
-            // Inizializza il servizio Places dopo il caricamento della libreria
-            const map = new google.maps.Map(document.createElement('div'));
-            placesService = new google.maps.places.PlacesService(map);
-            console.log('API Google Maps caricata correttamente');
+        async function initMap() {
+            try {
+                const { PlacesService } = await google.maps.importLibrary("places");
+                const map = new google.maps.Map(document.createElement('div'));
+                placesService = new PlacesService(map);
+                document.getElementById('status').textContent = 'API caricata con successo!';
+                document.getElementById('extractButton').disabled = false;
+                console.log('API Google Maps caricata');
+            } catch (error) {
+                showError('Errore caricamento API: ' + error.message);
+            }
         }
 
         function showError(message) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
+            document.getElementById('error').textContent = message;
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('status').textContent = '';
         }
 
-        function hideError() {
+        function showStatus(message) {
+            document.getElementById('status').textContent = message;
             document.getElementById('error').style.display = 'none';
         }
 
         function extractData() {
-            hideError();
+            showStatus('Elaborazione in corso...');
             const url = document.getElementById('mapsUrl').value;
             if (!url) {
-                showError('Inserisci un URL valido di Google Maps');
+                showError('Errore: Inserisci un URL valido');
                 return;
             }
 
-            // Estrazione coordinate dall'URL
             const coordRegex = /@(-?\d+\.\d+),(-?\d+\.\d+)/;
             const coordMatch = url.match(coordRegex);
-
             if (!coordMatch) {
-                showError('URL non valido: coordinate non trovate');
+                showError('Errore: Coordinate non trovate nell’URL');
                 return;
             }
 
@@ -106,22 +105,22 @@
             const lng = parseFloat(coordMatch[2]);
 
             if (!placesService) {
-                showError('Errore: API Google Maps non caricata. Controlla la chiave API.');
+                showError('Errore: API non pronta');
                 return;
             }
 
-            // Cerca luoghi vicini
+            showStatus('Ricerca luogo in corso...');
             const request = {
                 location: new google.maps.LatLng(lat, lng),
-                radius: '100', // Raggio in metri
+                radius: '100',
                 type: ['establishment']
             };
 
             placesService.nearbySearch(request, (results, status) => {
                 if (status === google.maps.places.PlacesServiceStatus.OK && results[0]) {
+                    showStatus('Luogo trovato, recupero dettagli...');
                     const placeId = results[0].place_id;
 
-                    // Ottieni dettagli
                     placesService.getDetails({ placeId: placeId }, (place, detailStatus) => {
                         if (detailStatus === google.maps.places.PlacesServiceStatus.OK) {
                             const addressComponents = place.address_components || [];
@@ -146,8 +145,9 @@
                             document.getElementById('website').textContent = place.website || 'Non trovato';
 
                             document.getElementById('results').style.display = 'block';
+                            showStatus('Dati estratti con successo!');
                         } else {
-                            showError('Errore nel recupero dei dettagli: ' + detailStatus);
+                            showError('Errore dettagli: ' + detailStatus);
                         }
                     });
                 } else {
@@ -155,6 +155,9 @@
                 }
             });
         }
+
+        // Avvia il caricamento dell’API
+        initMap();
     </script>
 </body>
 </html>
